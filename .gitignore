@@ -1,0 +1,75 @@
+# Binaries and build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go build cache
+/build/
+/bin/
+/dist/
+/logs/
+
+# Dependency directories (vendor/)
+vendor/
+
+# IDE/editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Generated gRPC/protobuf files
+*.pb.go
+*.pb.cc
+*.pb.h
+*.pb.c
+*.pb.cc
+*.pb.h
+*.pb.c
+*.pb.gw.go
+
+# SQLite database
+*.db
+*.sqlite
+*.sqlite3
+
+
+
+
+
+# Coverage
+coverage.out
+
+# Env files
+.env
+.env.*
+
+# Backup files
+*~
+
+# Ignore importworker generated files (if you want to keep proto only)
+importworker/*.pb.go
+importworker/*.pb.cc
+importworker/*.pb.h
+importworker/*.pb.c
+importworker/*.pb.gw.go 
+
+/search-engine/importworker/*.pb.go
+/search-engine/importworker/*.pb.cc
+/search-engine/importworker/*.pb.h
+/search-engine/importworker/*.pb.c
+/search-engine/importworker/*.pb.gw.go 

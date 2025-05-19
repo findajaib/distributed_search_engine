@@ -1,0 +1,98 @@
+<!-- Minimal test: If you see this, the template is rendering! -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worker Nodes - Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="main-nav">
+        {{if .User}}
+        <span class="welcome">Welcome, {{.User.Username}}!</span>
+        <div class="nav-links">
+            <a href="/">Home</a>
+            <a href="/history">Search History</a>
+            {{if eq .User.IsAdmin 1}}
+            <a href="/admin/import-data"><i class="fa-solid fa-database"></i> Import Data</a>
+            <a href="/admin/workers"><i class="fa-solid fa-chart"></i> Node Infos</a>
+            {{end}}
+            <a href="/logout">Logout</a>
+        </div>
+        {{else}}
+        <div class="nav-links">
+            <a href="/login">Login</a>
+            <a href="/register">Register</a>
+        </div>
+        {{end}}
+    </nav>
+    <div class="container mt-4">
+        <h2>Worker Nodes Status</h2>
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Active Workers</h5>
+                        <button class="btn btn-primary btn-sm" onclick="refreshWorkers()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Worker ID</th>
+                                        <th>Address</th>
+                                        <th>Status</th>
+                                        <th>Job Count</th>
+                                        <th>Last Seen</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="workersTable">
+                                    <!-- Worker data will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshWorkers() {
+            fetch('/api/admin/workers')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('workersTable');
+                    tbody.innerHTML = '';
+                    data.workers.forEach(worker => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${worker.worker_id}</td>
+                            <td>${worker.address}</td>
+                            <td>
+                                <span class="badge ${worker.is_healthy ? 'bg-success' : 'bg-danger'}">
+                                    ${worker.is_healthy ? 'Healthy' : 'Unhealthy'}
+                                </span>
+                            </td>
+                            <td>${worker.job_count}</td>
+                            <td>${new Date(worker.last_seen).toLocaleString()}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching workers:', error);
+                    // Optionally show a toast or alert
+                });
+        }
+        document.addEventListener('DOMContentLoaded', refreshWorkers);
+        setInterval(refreshWorkers, 30000);
+    </script>
+</body>
+</html> 

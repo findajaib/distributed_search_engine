@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Data Import - Admin</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .import-card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(44, 62, 80, 0.07);
+            padding: 2rem 1.5rem;
+            max-width: 700px;
+        }
+        .import-card h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem; }
+        .import-card label { font-weight: 600; margin-bottom: 0.3rem; display: block; }
+        .import-card input, .import-card textarea, .import-card select {
+            width: 100%;
+            padding: 0.8rem;
+            margin-bottom: 1.2rem;
+            border-radius: 6px;
+            border: 1px solid #e3eaf1;
+            font-size: 1.05rem;
+        }
+        .import-card button { width: 100%; margin-top: 1rem; }
+        .suggestions {
+            background: #f7fafd;
+            border-radius: 10px;
+            padding: 1.2rem 1rem;
+            max-width: 700px;
+        }
+        .suggestions h3 { font-size: 1.15rem; margin-bottom: 0.7rem; color: #217dbb; }
+        .suggestion-list { list-style: none; padding: 0; }
+        .suggestion-list li { margin-bottom: 0.7rem; }
+        .suggestion-list a { color: #3498db; text-decoration: none; font-weight: 500; }
+        .suggestion-list .tag { background: #eaf6fb; color: #217dbb; border-radius: 4px; padding: 0.2rem 0.7rem; font-size: 0.95rem; margin-left: 0.5rem; }
+        .import-tabs { display: flex; gap: 1rem; margin-bottom: 1.2rem; }
+        .import-tab { background: #eaf6fb; border: none; border-radius: 6px 6px 0 0; padding: 0.7rem 1.5rem; font-weight: 600; color: #217dbb; cursor: pointer; transition: background 0.18s; }
+        .import-tab.active, .import-tab:hover { background: #3498db; color: #fff; }
+        .import-tab-content { margin-bottom: 1.2rem; }
+    </style>
+</head>
+<body>
+    <nav class="main-nav">
+        {{if .User}}
+        <span class="welcome">Welcome, {{.User.Username}}!</span>
+        <div class="nav-links">
+            <a href="/">Home</a>
+            <a href="/history">Search History</a>
+            {{if eq .User.IsAdmin 1}}
+            <a href="/admin/import-data"><i class="fa-solid fa-database"></i> Import Data</a>
+            <a href="/admin/workers"><i class="fa-solid fa-chart"></i> Node Infos</a>
+            {{end}}
+            <a href="/logout">Logout</a>
+        </div>
+        {{else}}
+        <div class="nav-links">
+            <a href="/login">Login</a>
+            <a href="/register">Register</a>
+        </div>
+        {{end}}
+    </nav>
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-12 col-md-8">
+                <div class="import-card">
+                    <h2><i class="fa-solid fa-database"></i> Unified Data Import Tool</h2>
+                    <div class="import-tabs">
+                        <button type="button" class="import-tab active" onclick="showTab('csv')">CSV Import</button>
+                        <button type="button" class="import-tab" onclick="showTab('url')">URL/Crawl/Scrape</button>
+                        <button type="button" class="import-tab" onclick="showTab('wiki')">Wikipedia Import</button>
+                    </div>
+                    <form action="/admin/import-data" method="POST" class="auth-form" id="import-form" enctype="multipart/form-data">
+                        <!-- CSV Import Tab -->
+                        <div class="import-tab-content" id="tab-csv">
+                            <label for="csvfile">Import from CSV:</label>
+                            <input type="file" id="csvfile" name="csvfile" accept=".csv">
+                            <small>CSV columns: <b>title,body,source_url</b></small>
+                        </div>
+                        <!-- URL/Crawl/Scrape Tab -->
+                        <div class="import-tab-content" id="tab-url" style="display:none;">
+                            <label for="urls">URLs to Import (comma or newline separated):</label>
+                            <textarea id="urls" name="urls" rows="3" placeholder="https://example.com, https://wikipedia.org"></textarea>
+
+                            <label for="keywords">Keywords/Tags (comma or space separated):</label>
+                            <input type="text" id="keywords" name="keywords" placeholder="machine learning, Go, distributed systems">
+
+                            <label for="depth">Crawl Depth:</label>
+                            <select id="depth" name="depth">
+                                <option value="1">1 (Just the given page)</option>
+                                <option value="2">2 (Follow links from the page)</option>
+                                <option value="3">3 (Go deeper)</option>
+                                <option value="5">5 (Very deep)</option>
+                            </select>
+
+                            <label for="maxpages">Max Pages to Crawl (optional):</label>
+                            <input type="number" id="maxpages" name="maxpages" min="1" placeholder="e.g. 10">
+
+                            <label for="source_type">Source Type:</label>
+                            <select id="source_type" name="source_type">
+                                <option value="scrape">Scrape</option>
+                                <option value="crawl">Crawl</option>
+                            </select>
+                        </div>
+                        <!-- Wikipedia Import Tab -->
+                        <div class="import-tab-content" id="tab-wiki" style="display:none;">
+                            <label for="wiki_titles">Wikipedia Titles (comma or newline separated):</label>
+                            <textarea id="wiki_titles" name="wiki_titles" rows="3" placeholder="Artificial intelligence, Machine learning"></textarea>
+                            <label for="wiki_keywords">Keywords/Tags (comma or space separated):</label>
+                            <input type="text" id="wiki_keywords" name="wiki_keywords" placeholder="AI, ML, data">
+                        </div>
+                        <button type="submit">Import Data</button>
+                    </form>
+                    <div id="import-progress" style="display:none; text-align:center; margin-top:1.5rem;">
+                        <div class="spinner" style="margin:0 auto 1rem auto;"></div>
+                        <span style="color:#217dbb; font-weight:500;">Importing, please wait...</span>
+                    </div>
+                    {{if .Msg}}
+                        <div class="toast show" style="position:fixed;top:30px;left:30px;z-index:9999;opacity:1;transform:none;background:linear-gradient(90deg,#ff5858 0%,#f09819 100%);color:#fff;">{{.Msg}}</div>
+                    {{end}}
+                    {{if .Summary}}
+                    <div class="import-summary" style="margin-top:1.5rem;">
+                        {{if .Summary.Successes}}
+                            <div style="color:#217dbb; font-weight:600; margin-bottom:0.7rem;">Imported:</div>
+                            <ul style="margin-bottom:1.2rem;">
+                            {{range .Summary.Successes}}
+                                <li style="color:#2c3e50;">✔ {{.}}</li>
+                            {{end}}
+                            </ul>
+                        {{end}}
+                        {{if .Summary.Failures}}
+                            <div style="color:#c0392b; font-weight:600; margin-bottom:0.7rem;">Failed:</div>
+                            <ul>
+                            {{range .Summary.Failures}}
+                                <li style="color:#c0392b;">✖ {{.}}</li>
+                            {{end}}
+                            </ul>
+                        {{end}}
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="suggestions">
+                    <h3><i class="fa-solid fa-lightbulb"></i> Best Dataset Sources & Tags</h3>
+                    <ul class="suggestion-list">
+                        <li><a href="https://kaggle.com/datasets" target="_blank">Kaggle Datasets</a> <span class="tag">data science</span></li>
+                        <li><a href="https://data.gov" target="_blank">Data.gov</a> <span class="tag">government</span></li>
+                        <li><a href="https://github.com/awesomedata/awesome-public-datasets" target="_blank">Awesome Public Datasets</a> <span class="tag">public</span></li>
+                        <li><a href="https://archive.ics.uci.edu/ml/index.php" target="_blank">UCI ML Repository</a> <span class="tag">machine learning</span></li>
+                        <li><a href="https://en.wikipedia.org/wiki/List_of_datasets_for_machine-learning_research" target="_blank">Wikipedia: ML Datasets</a> <span class="tag">wikipedia</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    const importForm = document.getElementById('import-form');
+    const importProgress = document.getElementById('import-progress');
+    if(importForm && importProgress) {
+        importForm.addEventListener('submit', function() {
+            importProgress.style.display = 'block';
+        });
+        // Hide progress if a message is shown (after reload)
+        if(document.querySelector('.toast.show')) {
+            importProgress.style.display = 'none';
+        }
+    }
+    function showTab(tab) {
+        document.querySelectorAll('.import-tab').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.import-tab-content').forEach(div => div.style.display = 'none');
+        document.querySelector('.import-tab[onclick*="' + tab + '"]').classList.add('active');
+        document.getElementById('tab-' + tab).style.display = '';
+    }
+    </script>
+</body>
+</html> 

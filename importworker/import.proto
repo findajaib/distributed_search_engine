@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package importworker;
+
+option go_package = "search-engine/importworker";
+
+// Import worker service
+service ImportWorker {
+  rpc Import(ImportJob) returns (ImportResult) {}
+}
+
+// Registry service for worker management
+service Registry {
+  rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse) {}
+  rpc UnregisterWorker(UnregisterWorkerRequest) returns (UnregisterWorkerResponse) {}
+  rpc GetWorkers(GetWorkersRequest) returns (GetWorkersResponse) {}
+  rpc UpdateWorkerStatus(UpdateWorkerStatusRequest) returns (UpdateWorkerStatusResponse) {}
+}
+
+// Import job message
+message ImportJob {
+  repeated string urls = 1;
+  repeated string keywords = 2;
+  int32 depth = 3;
+  string source_type = 4;  // "scrape", "crawl", "wikipedia", or "direct"
+  repeated string titles = 5;  // For direct database imports
+  repeated string bodies = 6;  // For direct database imports
+}
+
+// Import result message
+message ImportResult {
+  repeated string successes = 1;
+  repeated string failures = 2;
+}
+
+// Worker registration messages
+message RegisterWorkerRequest {
+  string worker_id = 1;
+  string address = 2;
+}
+
+message RegisterWorkerResponse {}
+
+message UnregisterWorkerRequest {
+  string worker_id = 1;
+}
+
+message UnregisterWorkerResponse {}
+
+message GetWorkersRequest {}
+
+message GetWorkersResponse {
+  repeated WorkerInfo workers = 1;
+}
+
+message WorkerInfo {
+  string worker_id = 1;
+  string address = 2;
+  int32 job_count = 3;
+}
+
+message UpdateWorkerStatusRequest {
+  string worker_id = 1;
+  bool is_healthy = 2;
+  int32 job_count = 3;
+}
+
+message UpdateWorkerStatusResponse {} 

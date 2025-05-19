@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .dropdown { position: relative; display: inline-block; }
+        .dropbtn { background: none; border: none; color: #3498db; font-size: 1rem; font-weight: 500; cursor: pointer; padding: 0.5rem 1rem; border-radius: 4px; transition: background 0.2s; display: flex; align-items: center; gap: 0.5rem; }
+        .dropbtn:hover, .dropdown:hover .dropbtn { background: #eaf6fb; }
+        .dropdown-content { display: none; position: absolute; background-color: #fff; min-width: 200px; box-shadow: 0 2px 8px rgba(44, 62, 80, 0.07); z-index: 1; border-radius: 8px; margin-top: 0.5rem; }
+        .dropdown-content a { color: #3498db; padding: 0.8rem 1.2rem; text-decoration: none; display: block; border-radius: 8px; transition: background 0.2s; }
+        .dropdown-content a:hover { background: #f7fafd; }
+        .dropdown:hover .dropdown-content { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="main-nav">
+            {{if .User}}
+                <span class="welcome">Welcome, {{.User.Username}}!</span>
+                <div class="nav-links">
+                    <a href="/history">Search History</a>
+                    {{if eq .User.IsAdmin 1}}
+                        <a href="/admin/import-data"><i class="fa-solid fa-database"></i> Import Data</a>
+                    {{end}}
+                    <a href="/logout">Logout</a>
+                </div>
+            {{else}}
+                <div class="nav-links">
+                    <a href="/login">Login</a>
+                    <a href="/register">Register</a>
+                </div>
+            {{end}}
+        </nav>
+
+        <div class="search-container">
+            <h1>Search Engine</h1>
+            <form action="/search" method="GET" class="search-form">
+                <div class="search-box">
+                    <input type="text" name="q" value="{{.Query}}" placeholder="Enter your search query..." required>
+                    <button type="submit">Search</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="results-container">
+            <h2>Search Results for "{{.Query}}"</h2>
+            {{if .Results}}
+                <div class="results-list">
+                    {{range .Results}}
+                    <div class="result-item">
+                        <h3><a href="{{.Document.Link}}" style="color:#3498db;text-decoration:none;" target="_blank" rel="noopener">{{.Document.Title}}</a></h3>
+                        <p>{{.Document.Content}}</p>
+                        {{if .Document.Link}}
+                        <div class="result-meta" style="margin-bottom:0.5rem;">
+                            <a href="{{.Document.Link}}" target="_blank" rel="noopener" style="color:#888; font-size:0.98rem; word-break:break-all;">
+                                {{.Document.Link}}
+                            </a>
+                        </div>
+                        {{end}}
+                        <div class="result-meta">
+                            <span class="score">Relevance: {{.Score}}</span>
+                            <a href="{{.Document.Link}}" style="margin-left:1.2rem;font-size:0.98rem;" target="_blank" rel="noopener">View Full &rarr;</a>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            {{else}}
+                <p class="no-results">No results found for your query.</p>
+            {{end}}
+        </div>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html> 
