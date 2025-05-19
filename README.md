@@ -36,37 +36,20 @@
 
 3. **Generate gRPC/Protobuf files:**
    ```sh
-   # If you have a script
-   ./generate.ps1
-   # Or manually
    protoc --go_out=. --go-grpc_out=. importworker/import.proto
    ```
 
-4. **Build the project:**
+4. **Run the application:**
    ```sh
-   ./build.ps1
-   # or
-   ./build.bat
-   # or manually
-   go build ./...
+   ./run.bat
    ```
+   The script provides an interactive menu:
+   - Press 1 to build all components
+   - Press 2 to start all servers
+     - When starting servers, you'll be prompted to specify the number of worker nodes
+     - If no number is specified, it defaults to 1 worker
 
-5. **Run the services:**
-   - **Main server:**
-     ```sh
-     go run cmd/main/main.go
-     ```
-   - **Registry server:**
-     ```sh
-     go run cmd/registry/main.go
-     ```
-   - **Worker server:**
-     ```sh
-     go run cmd/worker/main.go
-     ```
-   - Or use your batch/PowerShell scripts to start all services.
-
-6. **Access the app:**
+5. **Access the app:**
    - Open your browser and go to: [http://localhost:8080](http://localhost:8080)
 
 ## Scripts
