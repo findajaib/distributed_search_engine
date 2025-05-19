@@ -5,6 +5,7 @@ go 1.24.2
 require (
 	github.com/go-shiori/go-readability v0.0.0-20250217085726-9f5bf5ca7612
 	github.com/gocolly/colly/v2 v2.2.0
+	github.com/joho/godotenv v1.5.1
 	golang.org/x/crypto v0.37.0
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6

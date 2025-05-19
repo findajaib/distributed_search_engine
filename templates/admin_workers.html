@@ -16,9 +16,9 @@
         <div class="nav-links">
             <a href="/">Home</a>
             <a href="/history">Search History</a>
-            {{if eq .User.IsAdmin 1}}
+            {{if .User.IsAdmin}}
             <a href="/admin/import-data"><i class="fa-solid fa-database"></i> Import Data</a>
-            <a href="/admin/workers"><i class="fa-solid fa-chart"></i> Node Infos</a>
+            <a href="/admin/workers"><i class="fa-solid fa-dashboard"></i> Node Infos</a>
             {{end}}
             <a href="/logout">Logout</a>
         </div>
@@ -70,6 +70,14 @@
                 .then(data => {
                     const tbody = document.getElementById('workersTable');
                     tbody.innerHTML = '';
+                    if (data.error) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="color:red;">' + data.error + '</td></tr>';
+                        return;
+                    }
+                    if (!data.workers || data.workers.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5">No workers found.</td></tr>';
+                        return;
+                    }
                     data.workers.forEach(worker => {
                         const row = document.createElement('tr');
                         row.innerHTML = `
@@ -87,8 +95,9 @@
                     });
                 })
                 .catch(error => {
+                    const tbody = document.getElementById('workersTable');
+                    tbody.innerHTML = '<tr><td colspan="5" style="color:red;">Error loading workers.</td></tr>';
                     console.error('Error fetching workers:', error);
-                    // Optionally show a toast or alert
                 });
         }
         document.addEventListener('DOMContentLoaded', refreshWorkers);

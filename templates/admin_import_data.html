@@ -49,9 +49,9 @@
         <div class="nav-links">
             <a href="/">Home</a>
             <a href="/history">Search History</a>
-            {{if eq .User.IsAdmin 1}}
+            {{if .User.IsAdmin}}
             <a href="/admin/import-data"><i class="fa-solid fa-database"></i> Import Data</a>
-            <a href="/admin/workers"><i class="fa-solid fa-chart"></i> Node Infos</a>
+            <a href="/admin/workers"><i class="fa-solid fa-dashboard"></i> Node Infos</a>
             {{end}}
             <a href="/logout">Logout</a>
         </div>
@@ -66,7 +66,7 @@
         <div class="row g-4">
             <div class="col-12 col-md-8">
                 <div class="import-card">
-                    <h2><i class="fa-solid fa-database"></i> Unified Data Import Tool</h2>
+                    <h2><i class="fa-solid fa-database"></i>  Data Import Tool</h2>
                     <div class="import-tabs">
                         <button type="button" class="import-tab active" onclick="showTab('csv')">CSV Import</button>
                         <button type="button" class="import-tab" onclick="showTab('url')">URL/Crawl/Scrape</button>

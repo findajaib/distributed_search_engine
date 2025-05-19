@@ -123,9 +123,9 @@
         <div class="nav-links">
             <a href="/">Home</a>
             <a href="/history">Search History</a>
-            {{if eq .User.IsAdmin 1}}
+            {{if .User.IsAdmin}}
             <a href="/admin/import-data"><i class="fa-solid fa-database"></i> Import Data</a>
-            <a href="/admin/workers"><i class="fa-solid fa-chart"></i> Node Infos</a>
+            <a href="/admin/workers"><i class="fa-solid fa-dashboard"></i> Node Infos</a>
             {{end}}
             <a href="/logout">Logout</a>
         </div>

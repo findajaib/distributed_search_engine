@@ -166,7 +166,7 @@
         <span class="welcome">Welcome, {{.User.Username}}!</span>
         <div class="nav-links">
             <a href="/history">Search History</a>
-            {{if eq .User.IsAdmin 1}}
+            {{if .User.IsAdmin}}
             <a href="/admin/import-data"><i class="fa-solid fa-database"></i> Import Data</a>
             <a href="/admin/workers"><i class="fa-solid fa-dashboard"></i> Node Infos</a>
             {{end}}

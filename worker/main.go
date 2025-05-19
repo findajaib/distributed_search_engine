@@ -124,6 +124,7 @@ func (s *server) Import(ctx context.Context, job *pb.ImportJob) (*pb.ImportResul
 		}
 	}
 
+	log.Printf("[DEBUG] Import completed. Successes: %d, Failures: %d", len(successes), len(failures))
 	return &pb.ImportResult{
 		Successes: successes,
 		Failures:  failures,
