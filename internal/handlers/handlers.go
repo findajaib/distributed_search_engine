@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -10,6 +12,7 @@ import (
 
 	"search-engine/internal/app"
 	"search-engine/internal/models"
+	"search-engine/internal/services"
 )
 
 const (
@@ -344,19 +347,27 @@ func HandleAdminImportData(app *app.App, w http.ResponseWriter, r *http.Request)
 	if r.Method == "POST" {
 		file, _, err := r.FormFile("csvfile")
 		if err != nil {
-			msg = "Failed to get file: " + err.Error()
-		} else {
-			defer file.Close()
-			sum, err := app.GetContentService().ImportFromCSV(file)
-			if err != nil {
-				msg = "Failed to import: " + err.Error()
-			} else {
-				msg = "Import completed."
-				summary = &sum
-			}
+			http.Error(w, "Failed to get file: "+err.Error(), http.StatusBadRequest)
+			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(summary)
+		data, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Start async import, but do not set msg to job ID
+		go func(data []byte) {
+			_, _ = app.GetContentService().ImportFromCSV(bytes.NewReader(data)) // Optionally, you could store the result somewhere for later display
+		}(data)
+
+		// Show spinner only (no toast/message)
+		app.RenderTemplate(w, "admin_import_data.html", ImportDataPage{
+			User:    user,
+			Msg:     "", // No message, just spinner
+			Summary: nil,
+		})
 		return
 	}
 
@@ -365,6 +376,20 @@ func HandleAdminImportData(app *app.App, w http.ResponseWriter, r *http.Request)
 		Msg:     msg,
 		Summary: summary,
 	})
+}
+
+// New handler to check import job status
+func HandleAdminImportStatus(w http.ResponseWriter, r *http.Request) {
+	jobID := r.URL.Query().Get("job_id")
+	services.ImportJobsMu.RLock()
+	status, exists := services.ImportJobs[jobID]
+	services.ImportJobsMu.RUnlock()
+	if !exists {
+		http.Error(w, "Job not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
 }
 
 // Helper functions

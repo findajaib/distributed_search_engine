@@ -114,8 +114,8 @@ echo Main service started successfully.
 
 :: Start Workers
 echo Starting worker services...
-for /L %%i in (0,1,%worker_count%-1) do (
-    set /a port=%WORKER_START_PORT% + %%i
+for /L %%i in (1,1,%worker_count%) do (
+    set /a port=%WORKER_START_PORT% + %%i - 1
     echo Starting worker %%i on port !port!...
     start /B "" "%BUILD_DIR%\worker.exe" --port !port! --db "search_engine.db" --registry %REGISTRY_ADDRESS% > "%LOG_DIR%\worker_%%i.log" 2>&1
     timeout /t 5 >nul

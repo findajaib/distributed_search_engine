@@ -239,27 +239,39 @@ func (s *SQLContentService) GetRecentContent(limit int) ([]models.ScrapedContent
 }
 
 func (s *SQLContentService) ImportFromCSV(file io.Reader) (models.ImportSummary, error) {
+	log.Println("[DEBUG] ImportFromCSV: started")
 	var summary models.ImportSummary
 	if s.workerMgr == nil {
+		log.Println("[DEBUG] ImportFromCSV: worker manager is not initialized")
 		return summary, fmt.Errorf("worker manager is not initialized")
 	}
 	reader := csv.NewReader(file)
-
+	_, err := reader.Read() // skip header
+	if err != nil {
+		log.Printf("[DEBUG] ImportFromCSV: failed to read header: %v", err)
+		return summary, fmt.Errorf("failed to read CSV header: %w", err)
+	}
+	rowNum := 0
 	for {
+		log.Printf("[DEBUG] ImportFromCSV: reading row %d", rowNum)
 		record, err := reader.Read()
 		if err == io.EOF {
+			log.Printf("[DEBUG] ImportFromCSV: reached EOF at row %d", rowNum)
 			break
 		}
 		if err != nil {
+			log.Printf("[DEBUG] ImportFromCSV: CSV read error at row %d: %v", rowNum, err)
 			summary.Failures = append(summary.Failures, "CSV read error: "+err.Error())
 			continue
 		}
 		if len(record) < 3 {
+			log.Printf("[DEBUG] ImportFromCSV: Invalid CSV row at row %d: %v", rowNum, record)
 			summary.Failures = append(summary.Failures, "Invalid CSV row: "+strings.Join(record, ", "))
 			continue
 		}
 
 		title, body, sourceURL := record[0], record[1], record[2]
+		log.Printf("[DEBUG] ImportFromCSV: Distributing job for row %d: title=%s, body=%s, sourceURL=%s", rowNum, title, body, sourceURL)
 		job := &pb.ImportJob{
 			Urls:       []string{sourceURL},
 			Keywords:   []string{title, body},
@@ -268,6 +280,7 @@ func (s *SQLContentService) ImportFromCSV(file io.Reader) (models.ImportSummary,
 		}
 
 		results, err := s.workerMgr.DistributeJob(job)
+		log.Printf("[DEBUG] ImportFromCSV: DistributeJob returned for row %d (err=%v, results=%+v)", rowNum, err, results)
 		if err != nil {
 			summary.Failures = append(summary.Failures, title+": "+err.Error())
 			continue
@@ -277,8 +290,9 @@ func (s *SQLContentService) ImportFromCSV(file io.Reader) (models.ImportSummary,
 			summary.Successes = append(summary.Successes, res.Successes...)
 			summary.Failures = append(summary.Failures, res.Failures...)
 		}
+		rowNum++
 	}
-
+	log.Println("[DEBUG] ImportFromCSV: completed")
 	return summary, nil
 }
 
@@ -491,67 +505,82 @@ func (wm *workerManagerImpl) discoverWorkers() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		log.Println("discoverWorkers: Starting worker discovery cycle")
+		log.Println("[INFO] discoverWorkers: Starting worker discovery cycle")
 		conn, err := grpc.Dial(wm.registry, grpc.WithInsecure())
 		if err != nil {
-			log.Printf("discoverWorkers: Failed to connect to registry: %v", err)
+			log.Printf("[ERROR] discoverWorkers: Failed to connect to registry: %v", err)
 			continue
 		}
+
 		client := pb.NewRegistryClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		resp, err := client.GetWorkers(ctx, &pb.GetWorkersRequest{})
 		cancel()
 		conn.Close()
+
 		if err != nil {
-			log.Printf("discoverWorkers: Failed to fetch workers from registry: %v", err)
+			log.Printf("[ERROR] discoverWorkers: Failed to fetch workers from registry: %v", err)
 			continue
 		}
 
-		log.Println("discoverWorkers: Acquiring write lock to update worker list")
+		log.Println("[INFO] discoverWorkers: Acquiring write lock to update worker list")
 		wm.mu.Lock()
-		// Close old connections
-		for _, w := range wm.workers {
-			if w.conn != nil {
-				log.Printf("discoverWorkers: Closing connection to worker at %s", w.address)
+
+		// Keep existing connections for workers that are still present
+		newWorkers := make(map[string]*workerClient)
+		for _, w := range resp.Workers {
+			if existing, exists := wm.workers[w.WorkerId]; exists {
+				// Update existing worker info
+				existing.jobCount = w.JobCount
+				existing.isHealthy = true
+				existing.lastSeen = time.Now()
+				newWorkers[w.WorkerId] = existing
+				log.Printf("[INFO] discoverWorkers: Updated existing worker %s at %s", w.WorkerId, w.Address)
+			} else {
+				// Create new connection for new worker
+				workerConn, err := grpc.Dial(w.Address, grpc.WithInsecure())
+				if err != nil {
+					log.Printf("[ERROR] discoverWorkers: Failed to connect to worker %s at %s: %v", w.WorkerId, w.Address, err)
+					continue
+				}
+
+				importWorkerClient := pb.NewImportWorkerClient(workerConn)
+				log.Printf("[INFO] discoverWorkers: Connected to new worker %s at %s", w.WorkerId, w.Address)
+				newWorkers[w.WorkerId] = &workerClient{
+					address:   w.Address,
+					client:    importWorkerClient,
+					conn:      workerConn,
+					jobCount:  w.JobCount,
+					isHealthy: true,
+					lastSeen:  time.Now(),
+				}
+			}
+		}
+
+		// Close connections for removed workers
+		for id, w := range wm.workers {
+			if _, exists := newWorkers[id]; !exists {
+				log.Printf("[INFO] discoverWorkers: Closing connection to removed worker at %s", w.address)
 				w.conn.Close()
 			}
 		}
-		wm.workers = make(map[string]*workerClient)
-		for _, w := range resp.Workers {
-			workerConn, err := grpc.Dial(w.Address, grpc.WithInsecure())
-			if err != nil {
-				log.Printf("discoverWorkers: Failed to connect to worker %s at %s: %v", w.WorkerId, w.Address, err)
-				continue
-			}
-			importWorkerClient := pb.NewImportWorkerClient(workerConn)
-			log.Printf("discoverWorkers: Connected to worker %s at %s", w.WorkerId, w.Address)
-			wm.workers[w.WorkerId] = &workerClient{
-				address:   w.Address,
-				client:    importWorkerClient,
-				conn:      workerConn,
-				jobCount:  w.JobCount,
-				isHealthy: true,
-				lastSeen:  time.Now(),
-			}
-		}
+
+		wm.workers = newWorkers
 		wm.mu.Unlock()
-		log.Println("discoverWorkers: Released write lock after updating worker list")
+		log.Println("[INFO] discoverWorkers: Released write lock after updating worker list")
 	}
 }
 
 func (wm *workerManagerImpl) DistributeJob(job *pb.ImportJob) ([]*pb.ImportResult, error) {
-	log.Println("DistributeJob: Acquiring read lock")
+	log.Println("[INFO] DistributeJob: Acquiring read lock")
 	wm.mu.RLock()
-	defer func() {
-		log.Println("DistributeJob: Releasing read lock")
-		wm.mu.RUnlock()
-	}()
-
 	if len(wm.workers) == 0 {
-		log.Println("DistributeJob: No workers available")
+		log.Println("[ERROR] DistributeJob: No workers available")
+		wm.mu.RUnlock()
 		return nil, fmt.Errorf("no workers available")
 	}
 
+	// Find worker with least jobs
 	var selectedWorker *workerClient
 	var minJobs int32 = 1<<31 - 1
 	for _, w := range wm.workers {
@@ -562,28 +591,35 @@ func (wm *workerManagerImpl) DistributeJob(job *pb.ImportJob) ([]*pb.ImportResul
 	}
 
 	if selectedWorker == nil {
-		log.Println("DistributeJob: No selected worker")
+		log.Println("[ERROR] DistributeJob: No selected worker")
+		wm.mu.RUnlock()
 		return nil, fmt.Errorf("no workers available")
 	}
+	wm.mu.RUnlock()
+	log.Println("[INFO] DistributeJob: Releasing read lock")
 
-	log.Printf("DistributeJob: Sending job to worker at %s", selectedWorker.address)
+	log.Printf("[INFO] DistributeJob: Sending job to worker at %s", selectedWorker.address)
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
+	log.Printf("[DEBUG] DistributeJob: Calling Import on worker %s", selectedWorker.address)
 	result, err := selectedWorker.client.Import(ctx, job)
+	log.Printf("[DEBUG] DistributeJob: Import call returned (err=%v, result=%+v)", err, result)
+
+	log.Println("[DEBUG] DistributeJob: After Import call, before error check")
 	if err != nil {
-		log.Printf("DistributeJob: Worker import failed for %s: %v", selectedWorker.address, err)
+		log.Printf("[ERROR] DistributeJob: Worker import failed for %s: %v", selectedWorker.address, err)
 		// Signal worker removal without nested locks
 		go func() {
-			log.Println("DistributeJob: Acquiring write lock for worker removal")
+			log.Println("[INFO] DistributeJob: Acquiring write lock for worker removal")
 			wm.mu.Lock()
 			defer func() {
-				log.Println("DistributeJob: Releasing write lock after worker removal")
+				log.Println("[INFO] DistributeJob: Releasing write lock after worker removal")
 				wm.mu.Unlock()
 			}()
 			for id, w := range wm.workers {
 				if w == selectedWorker {
-					log.Printf("DistributeJob: Removing unhealthy worker %s at %s", id, w.address)
+					log.Printf("[INFO] DistributeJob: Removing unhealthy worker %s at %s", id, w.address)
 					w.conn.Close()
 					delete(wm.workers, id)
 					break
@@ -592,14 +628,14 @@ func (wm *workerManagerImpl) DistributeJob(job *pb.ImportJob) ([]*pb.ImportResul
 		}()
 		return nil, fmt.Errorf("worker import failed: %w", err)
 	}
-
-	log.Println("DistributeJob: Acquiring write lock to update job count")
+	log.Println("[DEBUG] DistributeJob: After error check, before write lock")
+	log.Println("[INFO] DistributeJob: Acquiring write lock to update job count")
 	wm.mu.Lock()
 	selectedWorker.jobCount++
 	wm.mu.Unlock()
-	log.Println("DistributeJob: Released write lock after updating job count")
-
-	log.Printf("DistributeJob: Job completed by worker at %s", selectedWorker.address)
+	log.Println("[INFO] DistributeJob: Released write lock after updating job count")
+	log.Println("[DEBUG] DistributeJob: Before return statement")
+	log.Printf("[INFO] DistributeJob: Job completed by worker at %s", selectedWorker.address)
 	return []*pb.ImportResult{result}, nil
 }
 

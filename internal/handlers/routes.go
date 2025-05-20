@@ -64,6 +64,9 @@ func SetupRoutes(app *app.App) {
 	http.HandleFunc("/admin/import-data", func(w http.ResponseWriter, r *http.Request) {
 		HandleAdminImportData(app, w, r)
 	})
+	http.HandleFunc("/admin/import-status", func(w http.ResponseWriter, r *http.Request) {
+		HandleAdminImportStatus(w, r)
+	})
 
 	// Admin API routes
 	http.HandleFunc("/api/admin/workers", func(w http.ResponseWriter, r *http.Request) {

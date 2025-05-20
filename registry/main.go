@@ -33,6 +33,8 @@ type workerInfo struct {
 	isHealthy  bool
 	jobCount   int32
 	lastUpdate time.Time
+	conn       *grpc.ClientConn
+	client     healthpb.HealthClient
 }
 
 func newRegistryServer() *registryServer {
@@ -45,15 +47,34 @@ func (s *registryServer) RegisterWorker(ctx context.Context, req *pb.RegisterWor
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Check if worker already exists
+	if existing, exists := s.workers[req.WorkerId]; exists {
+		log.Printf("[INFO] Worker %s already registered, updating information", req.WorkerId)
+		existing.address = req.Address
+		existing.lastSeen = time.Now()
+		existing.isHealthy = true
+		existing.lastUpdate = time.Now()
+		return &pb.RegisterWorkerResponse{}, nil
+	}
+
+	// Create connection to worker for health checks
+	conn, err := grpc.Dial(req.Address, grpc.WithInsecure())
+	if err != nil {
+		log.Printf("[ERROR] Failed to connect to worker %s at %s: %v", req.WorkerId, req.Address, err)
+		return nil, fmt.Errorf("failed to connect to worker: %w", err)
+	}
+
 	s.workers[req.WorkerId] = &workerInfo{
 		address:    req.Address,
 		lastSeen:   time.Now(),
 		isHealthy:  true,
 		jobCount:   0,
 		lastUpdate: time.Now(),
+		conn:       conn,
+		client:     healthpb.NewHealthClient(conn),
 	}
 
-	log.Printf("Worker registered: %s at %s", req.WorkerId, req.Address)
+	log.Printf("[INFO] Worker registered: %s at %s", req.WorkerId, req.Address)
 	return &pb.RegisterWorkerResponse{}, nil
 }
 
@@ -61,9 +82,12 @@ func (s *registryServer) UnregisterWorker(ctx context.Context, req *pb.Unregiste
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.workers[req.WorkerId]; exists {
+	if worker, exists := s.workers[req.WorkerId]; exists {
+		if worker.conn != nil {
+			worker.conn.Close()
+		}
 		delete(s.workers, req.WorkerId)
-		log.Printf("Worker unregistered: %s", req.WorkerId)
+		log.Printf("[INFO] Worker unregistered: %s", req.WorkerId)
 	}
 
 	return &pb.UnregisterWorkerResponse{}, nil
@@ -98,6 +122,7 @@ func (s *registryServer) UpdateWorkerStatus(ctx context.Context, req *pb.UpdateW
 		info.isHealthy = req.IsHealthy
 		info.jobCount = req.JobCount
 		info.lastUpdate = time.Now()
+		log.Printf("[DEBUG] Updated worker status: %s (healthy: %v, jobs: %d)", req.WorkerId, req.IsHealthy, req.JobCount)
 	}
 
 	return &pb.UpdateWorkerStatusResponse{}, nil
@@ -107,18 +132,46 @@ func (s *registryServer) startHealthCheck() {
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		for range ticker.C {
-			s.mu.Lock()
-			now := time.Now()
-			for id, info := range s.workers {
-				// Mark worker as unhealthy if not seen in last 2 minutes
-				if now.Sub(info.lastSeen) > 2*time.Minute {
-					info.isHealthy = false
-					log.Printf("Worker marked unhealthy: %s", id)
-				}
-			}
-			s.mu.Unlock()
+			s.checkWorkersHealth()
 		}
 	}()
+}
+
+func (s *registryServer) checkWorkersHealth() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	for id, info := range s.workers {
+		// Check if worker hasn't been seen in the last 2 minutes
+		if now.Sub(info.lastSeen) > 2*time.Minute {
+			log.Printf("[WARN] Worker %s marked unhealthy: no heartbeat for %v", id, now.Sub(info.lastSeen))
+			info.isHealthy = false
+			continue
+		}
+
+		// Check worker's health using gRPC health check
+		if info.client != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			resp, err := info.client.Check(ctx, &healthpb.HealthCheckRequest{})
+			cancel()
+
+			if err != nil {
+				log.Printf("[WARN] Worker %s health check failed: %v", id, err)
+				info.isHealthy = false
+				continue
+			}
+
+			if resp.Status != healthpb.HealthCheckResponse_SERVING {
+				log.Printf("[WARN] Worker %s not serving: %v", id, resp.Status)
+				info.isHealthy = false
+				continue
+			}
+
+			info.isHealthy = true
+			log.Printf("[DEBUG] Worker %s health check passed", id)
+		}
+	}
 }
 
 func main() {
@@ -144,7 +197,7 @@ func main() {
 	// Start health check loop
 	registry.startHealthCheck()
 
-	log.Printf("Registry server listening on :%d", *port)
+	log.Printf("[INFO] Registry server listening on :%d", *port)
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}

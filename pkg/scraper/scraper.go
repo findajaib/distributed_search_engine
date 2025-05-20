@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-shiori/go-readability"
 	"github.com/gocolly/colly/v2"
@@ -21,7 +22,8 @@ type ScrapeResult struct {
 
 // ScrapeReadable scrapes a URL for main readable content using go-readability
 func ScrapeReadable(rawurl string) (*ScrapeResult, error) {
-	resp, err := http.Get(rawurl)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(rawurl)
 	if err != nil {
 		return nil, err
 	}
@@ -100,8 +102,9 @@ func CrawlWebsite(startURL string, depth int, keywords []string) ([]*ScrapeResul
 
 // FetchWikipediaArticle fetches a Wikipedia article by title
 func FetchWikipediaArticle(title string) (*ScrapeResult, error) {
+	client := &http.Client{Timeout: 15 * time.Second}
 	apiURL := "https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext&format=json&titles=" + url.QueryEscape(title)
-	resp, err := http.Get(apiURL)
+	resp, err := client.Get(apiURL)
 	if err != nil {
 		return nil, err
 	}
