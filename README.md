@@ -68,4 +68,56 @@
 
 ---
 
-Feel free to update this README with more details about your project, endpoints, or usage instructions! 
+Feel free to update this README with more details about your project, endpoints, or usage instructions!
+
+# Project Structure
+
+```
+.
+├── cmd/
+│   └── server/           # Entry point for the main web server
+│       └── main.go
+├── internal/
+│   ├── app/              # App wiring, dependency injection, and app-wide helpers
+│   │   └── app.go
+│   ├── handlers/         # HTTP route handlers
+│   │   ├── handlers.go
+│   │   └── routes.go
+│   ├── models/           # Data models and interfaces
+│   │   └── models.go
+│   ├── services/         # Business logic, worker manager, and service implementations
+│   │   ├── services.go
+│   │   └── import_jobs.go
+│   ├── utils/            # Utility functions (e.g., ID generation, session helpers)
+│   │   └── utility.go
+│   └── database/         # Database connection and setup
+│       └── database.go
+├── registry/
+│   └── main.go           # Worker registry service (gRPC)
+├── worker/
+│   └── main.go           # Worker node (gRPC)
+├── templates/            # HTML templates for the web UI
+│   └── *.html
+├── static/               # Static assets (CSS, JS, images)
+├── logs/                 # Log files for main, worker, and registry
+├── go.mod, go.sum        # Go module files
+├── README.md             # Project documentation
+└── run.bat               # Batch script to build/run services and workers
+```
+
+## Folder/File Descriptions
+
+- **cmd/server/main.go**: Entry point for the main web server.
+- **internal/app/app.go**: Sets up the application, dependency injection, and app-wide helpers.
+- **internal/handlers/**: Contains HTTP route handlers and route registration.
+- **internal/models/models.go**: Data models and service interfaces.
+- **internal/services/services.go**: Business logic, service implementations, and worker manager.
+- **internal/services/import_jobs.go**: Tracks asynchronous import job status.
+- **internal/utils/utility.go**: Utility functions (ID generation, session helpers, etc).
+- **internal/database/database.go**: Database connection and setup helpers.
+- **registry/main.go**: gRPC registry service for worker registration and health.
+- **worker/main.go**: gRPC worker node that processes import jobs.
+- **templates/**: HTML templates for the web UI.
+- **static/**: Static assets (CSS, JS, images).
+- **logs/**: Log files for main, worker, and registry services.
+- **run.bat**: Batch script to build and run the main server, registry, and workers. 
